@@ -1,348 +1,724 @@
 
+# =====================================
 # model.py
+# CNN MODEL FOR FOOD DELIVERY PREDICTION
+# =====================================
 
-import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 
-from sklearn.model_selection import train_test_split
+from sklearn.metrics import (
 
-from mlxtend.preprocessing import TransactionEncoder
-from mlxtend.frequent_patterns import apriori, association_rules
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    confusion_matrix,
+    classification_report,
+    roc_curve,
+    auc
+
+)
+
+from sklearn.linear_model import LogisticRegression
+
+from sklearn.model_selection import (
+
+    KFold
+)
+
+from tensorflow.keras.models import Sequential
+
+from tensorflow.keras.layers import (
+
+    Conv1D,
+    MaxPooling1D,
+    Flatten,
+    Dense,
+    Dropout,
+    BatchNormalization
+
+)
+
+from tensorflow.keras.optimizers import Adam
+
+from tensorflow.keras.callbacks import EarlyStopping
 
 
-class AprioriModel:
+class CNNModel:
 
-    def __init__(
+    # =====================================
+    # INITIALIZE
+    # =====================================
+
+    def __init__(self):
+
+        self.model = None
+
+    # =====================================
+    # RESHAPE DATA FOR CNN
+    # =====================================
+
+    def reshape_data(
+
         self,
-        min_support=0.20,
-        min_confidence=0.60
+        X_train,
+        X_test
+
     ):
 
-        self.min_support = min_support
-        self.min_confidence = min_confidence
+        X_train = np.array(X_train)
 
-        self.frequent_itemsets = None
-        self.rules = None
+        X_test = np.array(X_test)
 
-    # ==========================================
-    # CONVERT DATAFRAME TO TRANSACTIONS
-    # ==========================================
+        X_train = X_train.reshape(
 
-    def prepare_transactions(self, transactions_df):
-
-        transactions = []
-
-        for _, row in transactions_df.iterrows():
-
-            transaction = []
-
-            for item in row:
-
-                if pd.notna(item):
-
-                    transaction.append(str(item))
-
-            transactions.append(transaction)
-
-        return transactions
-
-    # ==========================================
-    # TRAIN / TEST SPLIT
-    # ==========================================
-
-    def split_data(self, transactions):
-
-        train, test = train_test_split(
-
-            transactions,
-
-            test_size=0.20,
-
-            random_state=42,
-
-            shuffle=True
-
+            X_train.shape[0],
+            X_train.shape[1],
+            1
         )
 
-        return train, test
+        X_test = X_test.reshape(
 
-    # ==========================================
-    # ONE HOT ENCODING
-    # ==========================================
-
-    def encode_transactions(self, transactions):
-
-        te = TransactionEncoder()
-
-        encoded = te.fit(transactions).transform(
-            transactions
+            X_test.shape[0],
+            X_test.shape[1],
+            1
         )
 
-        encoded_df = pd.DataFrame(
+        return X_train, X_test
 
-            encoded,
+    # =====================================
+    # BUILD CNN MODEL
+    # =====================================
 
-            columns=te.columns_
+    def build_model(
 
-        )
+        self,
+        input_shape,
+        filters_1=64,
+        filters_2=128,
+        kernel_size=3,
+        learning_rate=0.001
 
-        return encoded_df
+    ):
 
-    # ==========================================
-    # APRIORI TRAINING
-    # ==========================================
+        self.model = Sequential()
 
-    def fit(self, train_transactions):
+        # =====================================
+        # FIRST CNN LAYER
+        # =====================================
 
-        encoded_df = self.encode_transactions(
-            train_transactions
-        )
+        self.model.add(
 
-        self.frequent_itemsets = apriori(
+            Conv1D(
 
-            encoded_df,
+                filters=filters_1,
 
-            min_support=self.min_support,
+                kernel_size=kernel_size,
 
-            use_colnames=True
+                activation='relu',
 
-        )
-
-        self.rules = association_rules(
-
-            self.frequent_itemsets,
-
-            metric="confidence",
-
-            min_threshold=self.min_confidence
-
-        )
-
-        self.rules = self.rules.sort_values(
-
-            by="lift",
-
-            ascending=False
-
-        )
-
-        print("\n========== Frequent Itemsets ==========")
-
-        print(self.frequent_itemsets)
-
-        print("\n========== Association Rules ==========")
-
-        print(
-
-            self.rules[
-
-                [
-
-                    "antecedents",
-
-                    "consequents",
-
-                    "support",
-
-                    "confidence",
-
-                    "lift"
-
-                ]
-
-            ]
-
-        )
-
-    # ==========================================
-    # EVALUATION
-    # ==========================================
-
-    def evaluate(self):
-
-        if self.rules.empty:
-
-            print("No association rules found.")
-
-            return
-
-        print("\n========== Evaluation ==========")
-
-        print(
-
-            "Average Support :",
-
-            round(
-
-                self.rules["support"].mean(),
-
-                4
-
+                input_shape=input_shape
             )
-
         )
 
-        print(
+        self.model.add(
+            BatchNormalization()
+        )
 
-            "Average Confidence :",
+        self.model.add(
+            MaxPooling1D(pool_size=2)
+        )
 
-            round(
+        self.model.add(
+            Dropout(0.3)
+        )
 
-                self.rules["confidence"].mean(),
+        # =====================================
+        # SECOND CNN LAYER
+        # =====================================
 
-                4
+        self.model.add(
 
+            Conv1D(
+
+                filters=filters_2,
+
+                kernel_size=kernel_size,
+
+                activation='relu'
             )
-
         )
+
+        self.model.add(
+            BatchNormalization()
+        )
+
+        self.model.add(
+            MaxPooling1D(pool_size=2)
+        )
+
+        self.model.add(
+            Dropout(0.3)
+        )
+
+        # =====================================
+        # FLATTEN
+        # =====================================
+
+        self.model.add(
+            Flatten()
+        )
+
+        # =====================================
+        # DENSE LAYERS
+        # =====================================
+
+        self.model.add(
+            Dense(128, activation='relu')
+        )
+
+        self.model.add(
+            Dropout(0.4)
+        )
+
+        self.model.add(
+            Dense(64, activation='relu')
+        )
+
+        # =====================================
+        # OUTPUT LAYER
+        # =====================================
+
+        self.model.add(
+            Dense(1, activation='sigmoid')
+        )
+
+        # =====================================
+        # COMPILE MODEL
+        # =====================================
+
+        optimizer = Adam(
+            learning_rate=learning_rate
+        )
+
+        self.model.compile(
+
+            optimizer=optimizer,
+
+            loss='binary_crossentropy',
+
+            metrics=['accuracy']
+        )
+
+        print("\nCNN Model Built Successfully")
+
+    # =====================================
+    # TRAIN MODEL
+    # =====================================
+
+    def train_model(
+
+        self,
+        X_train,
+        y_train,
+        epochs=30,
+        batch_size=16
+
+    ):
+
+        early_stop = EarlyStopping(
+
+            monitor='val_loss',
+
+            patience=5,
+
+            restore_best_weights=True
+        )
+
+        history = self.model.fit(
+
+            X_train,
+            y_train,
+
+            validation_split=0.2,
+
+            epochs=epochs,
+
+            batch_size=batch_size,
+
+            callbacks=[early_stop],
+
+            verbose=1
+        )
+
+        return history
+
+    # =====================================
+    # EVALUATE MODEL
+    # =====================================
+
+    def evaluate_model(
+
+        self,
+        X_test,
+        y_test
+
+    ):
+
+        predictions_prob = self.model.predict(
+            X_test
+        )
+
+        predictions = (
+
+            predictions_prob > 0.5
+        ).astype(int)
+
+        # =====================================
+        # METRICS
+        # =====================================
+
+        accuracy = accuracy_score(
+            y_test,
+            predictions
+        )
+
+        precision = precision_score(
+            y_test,
+            predictions
+        )
+
+        recall = recall_score(
+            y_test,
+            predictions
+        )
+
+        f1 = f1_score(
+            y_test,
+            predictions
+        )
+
+        print("\n===== CNN RESULTS =====")
+
+        print(f"Accuracy : {accuracy}")
+
+        print(f"Precision : {precision}")
+
+        print(f"Recall : {recall}")
+
+        print(f"F1 Score : {f1}")
 
         print(
 
-            "Average Lift :",
+            "\nClassification Report:\n",
 
-            round(
-
-                self.rules["lift"].mean(),
-
-                4
-
+            classification_report(
+                y_test,
+                predictions
             )
-
         )
-
-    # ==========================================
-    # SIMPLE VALIDATION
-    # ==========================================
-
-    def validate(self, test_transactions):
-
-        if self.rules.empty:
-
-            return
-
-        matches = 0
-
-        for transaction in test_transactions:
-
-            t = set(transaction)
-
-            for _, rule in self.rules.iterrows():
-
-                antecedent = set(
-                    rule["antecedents"]
-                )
-
-                consequent = set(
-                    rule["consequents"]
-                )
-
-                if antecedent.issubset(t):
-
-                    if consequent.issubset(t):
-
-                        matches += 1
-
-                    break
-
-        accuracy = matches / len(test_transactions)
 
         print(
 
-            "\nRule Match Accuracy :",
+            "\nConfusion Matrix:\n",
 
-            round(accuracy, 4)
-
+            confusion_matrix(
+                y_test,
+                predictions
+            )
         )
 
-    # ==========================================
-    # BAR GRAPH OF SUPPORT
-    # ==========================================
+        # =====================================
+        # ROC CURVE
+        # =====================================
 
-    def plot_support(self):
+        fpr, tpr, thresholds = roc_curve(
 
-        if self.frequent_itemsets.empty:
-
-            return
-
-        plt.figure(figsize=(10, 5))
-
-        plt.bar(
-
-            range(
-
-                len(self.frequent_itemsets)
-
-            ),
-
-            self.frequent_itemsets["support"]
-
+            y_test,
+            predictions_prob
         )
 
-        plt.xlabel("Frequent Itemsets")
+        roc_auc = auc(fpr, tpr)
 
-        plt.ylabel("Support")
+        plt.figure(figsize=(7, 5))
 
-        plt.title(
-
-            "Frequent Itemsets Support"
-
+        plt.plot(
+            fpr,
+            tpr,
+            label=f'AUC = {roc_auc:.2f}'
         )
+
+        plt.plot(
+            [0, 1],
+            [0, 1],
+            linestyle='--'
+        )
+
+        plt.xlabel('False Positive Rate')
+
+        plt.ylabel('True Positive Rate')
+
+        plt.title('ROC Curve')
+
+        plt.legend()
 
         plt.show()
 
-    # ==========================================
-    # SCATTER PLOT
-    # ==========================================
+    # =====================================
+    # LOGISTIC REGRESSION COMPARISON
+    # =====================================
 
-    def plot_rules(self):
+    def logistic_regression_baseline(
 
-        if self.rules.empty:
+        self,
+        X_train,
+        X_test,
+        y_train,
+        y_test
 
-            return
+    ):
 
-        plt.figure(figsize=(8, 6))
+        # CNN to 2D reshape
 
-        plt.scatter(
+        X_train_lr = X_train.reshape(
 
-            self.rules["support"],
-
-            self.rules["confidence"]
-
+            X_train.shape[0],
+            X_train.shape[1]
         )
 
-        plt.xlabel("Support")
+        X_test_lr = X_test.reshape(
 
-        plt.ylabel("Confidence")
-
-        plt.title(
-
-            "Association Rules"
-
+            X_test.shape[0],
+            X_test.shape[1]
         )
 
-        plt.show()
+        model = LogisticRegression()
 
-    # ==========================================
+        model.fit(
+            X_train_lr,
+            y_train
+        )
+
+        predictions = model.predict(
+            X_test_lr
+        )
+
+        accuracy = accuracy_score(
+            y_test,
+            predictions
+        )
+
+        print(
+            "\n===== LOGISTIC REGRESSION ====="
+        )
+
+        print(
+            f"Accuracy : {accuracy}"
+        )
+
+        print(
+
+            "\nClassification Report:\n",
+
+            classification_report(
+                y_test,
+                predictions
+            )
+        )
+
+    # =====================================
+    # K-FOLD CROSS VALIDATION
+    # =====================================
+
+    def cross_validation(
+
+        self,
+        X,
+        y,
+        folds=5
+
+    ):
+
+        X = np.array(X)
+
+        y = np.array(y)
+
+        kf = KFold(
+
+            n_splits=folds,
+
+            shuffle=True,
+
+            random_state=42
+        )
+
+        fold = 1
+
+        accuracy_scores = []
+
+        for train_index, test_index in kf.split(X):
+
+            print(
+                f"\n===== Fold {fold} ====="
+            )
+
+            X_train = X[train_index]
+
+            X_test = X[test_index]
+
+            y_train = y[train_index]
+
+            y_test = y[test_index]
+
+            # Reshape
+
+            X_train = X_train.reshape(
+
+                X_train.shape[0],
+                X_train.shape[1],
+                1
+            )
+
+            X_test = X_test.reshape(
+
+                X_test.shape[0],
+                X_test.shape[1],
+                1
+            )
+
+            # Build Model
+
+            self.build_model(
+
+                (
+                    X_train.shape[1],
+                    1
+                )
+            )
+
+            # Train
+
+            self.train_model(
+
+                X_train,
+                y_train,
+                epochs=15
+            )
+
+            # Predict
+
+            predictions = (
+
+                self.model.predict(
+                    X_test
+                ) > 0.5
+
+            ).astype(int)
+
+            accuracy = accuracy_score(
+
+                y_test,
+                predictions
+            )
+
+            accuracy_scores.append(
+                accuracy
+            )
+
+            print(
+                f"Fold Accuracy: {accuracy}"
+            )
+
+            fold += 1
+
+        print(
+
+            "\nAverage Cross Validation Accuracy:",
+
+            np.mean(accuracy_scores)
+        )
+
+    # =====================================
+    # HYPERPARAMETER TUNING
+    # =====================================
+
+    def hyperparameter_tuning(
+
+        self,
+        X_train,
+        X_test,
+        y_train,
+        y_test
+
+    ):
+
+        filter_options = [32, 64]
+
+        kernel_options = [2, 3]
+
+        learning_rates = [
+
+            0.001,
+            0.0001
+        ]
+
+        best_accuracy = 0
+
+        best_params = {}
+
+        for filters in filter_options:
+
+            for kernel in kernel_options:
+
+                for lr in learning_rates:
+
+                    print(
+
+                        f"\nTesting -> Filters:{filters}, Kernel:{kernel}, LR:{lr}"
+                    )
+
+                    self.build_model(
+
+                        (
+                            X_train.shape[1],
+                            1
+                        ),
+
+                        filters_1=filters,
+
+                        filters_2=filters * 2,
+
+                        kernel_size=kernel,
+
+                        learning_rate=lr
+                    )
+
+                    self.train_model(
+
+                        X_train,
+                        y_train,
+                        epochs=10
+                    )
+
+                    predictions = (
+
+                        self.model.predict(
+                            X_test
+                        ) > 0.5
+
+                    ).astype(int)
+
+                    accuracy = accuracy_score(
+
+                        y_test,
+                        predictions
+                    )
+
+                    print(
+                        f"Accuracy: {accuracy}"
+                    )
+
+                    if accuracy > best_accuracy:
+
+                        best_accuracy = accuracy
+
+                        best_params = {
+
+                            'filters': filters,
+
+                            'kernel_size': kernel,
+
+                            'learning_rate': lr
+                        }
+
+        print(
+            "\n===== BEST PARAMETERS ====="
+        )
+
+        print(best_params)
+
+        print(
+            f"Best Accuracy: {best_accuracy}"
+        )
+
+    # =====================================
     # COMPLETE PIPELINE
-    # ==========================================
+    # =====================================
 
-    def run(self, transactions_df):
+    def run_pipeline(
 
-        transactions = self.prepare_transactions(
-            transactions_df
+        self,
+        X_train,
+        X_test,
+        y_train,
+        y_test
+
+    ):
+
+        # =====================================
+        # RESHAPE
+        # =====================================
+
+        X_train, X_test = self.reshape_data(
+
+            X_train,
+            X_test
         )
 
-        train, test = self.split_data(
-            transactions
+        # =====================================
+        # BUILD MODEL
+        # =====================================
+
+        self.build_model(
+
+            (
+                X_train.shape[1],
+                1
+            )
         )
 
-        self.fit(train)
+        # =====================================
+        # TRAIN MODEL
+        # =====================================
 
-        self.evaluate()
+        self.train_model(
 
-        self.validate(test)
+            X_train,
+            y_train
+        )
 
-        self.plot_support()
+        # =====================================
+        # EVALUATE
+        # =====================================
 
-        self.plot_rules()
+        self.evaluate_model(
+
+            X_test,
+            y_test
+        )
+
+        # =====================================
+        # LOGISTIC REGRESSION COMPARISON
+        # =====================================
+
+        self.logistic_regression_baseline(
+
+            X_train,
+            X_test,
+            y_train,
+            y_test
+        )
+
+        # =====================================
+        # HYPERPARAMETER TUNING
+        # =====================================
+
+        self.hyperparameter_tuning(
+
+            X_train,
+            X_test,
+            y_train,
+            y_test
+        )
 

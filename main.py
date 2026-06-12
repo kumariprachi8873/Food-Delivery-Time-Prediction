@@ -1,89 +1,124 @@
 
+# =====================================
 # main.py
+# FOOD DELIVERY TIME PREDICTION
+# CNN MODEL
+# =====================================
 
 from dataset import Dataset
-from model import AprioriModel
+
+from model import CNNModel
 
 
 def main():
 
-    # ==========================================
-    # DATASET PATH
-    # ==========================================
-
-    file_path = "Global_Pollution_Analysis.csv"
-
-    # ==========================================
-    # LOAD & PREPROCESS DATA
-    # ==========================================
-
-    dataset = Dataset(file_path)
-
-    dataset.preprocess()
-
-    # ==========================================
-    # PREPARE TRANSACTIONS FOR APRIORI
-    # ==========================================
-
-    transactions_df = dataset.get_apriori_data()
-
-    print("\n===================================")
-    print("Sample Transaction Data")
-    print("===================================")
-    print(transactions_df.head())
-
-    # ==========================================
-    # INITIALIZE MODEL
-    # ==========================================
-
-    model = AprioriModel(
-
-        min_support=0.20,
-
-        min_confidence=0.60
-
+    print(
+        "\n====================================="
     )
 
-    # ==========================================
-    # RUN APRIORI PIPELINE
-    # ==========================================
+    print(
+        " FOOD DELIVERY CNN PREDICTION SYSTEM "
+    )
 
-    model.run(transactions_df)
+    print(
+        "=====================================\n"
+    )
 
-    # ==========================================
-    # DISPLAY FINAL RULES
-    # ==========================================
+    # =====================================
+    # DATASET LOADING + PREPROCESSING
+    # =====================================
 
-    print("\n===================================")
-    print("FINAL ASSOCIATION RULES")
-    print("===================================")
+    dataset = Dataset(
 
-    if model.rules is not None and not model.rules.empty:
+        "Food_Delivery_Time_Prediction.csv"
+    )
 
-        display_columns = [
+    (
+        X_train,
+        X_test,
+        y_train,
+        y_test
 
-            "antecedents",
-            "consequents",
-            "support",
-            "confidence",
-            "lift"
+    ) = dataset.preprocess()
 
-        ]
+    print(
+        "\nDataset Preprocessing Completed"
+    )
 
-        print(model.rules[display_columns])
+    print(
+        "\nTraining Shape:",
+        X_train.shape
+    )
 
-    else:
+    print(
+        "Testing Shape:",
+        X_test.shape
+    )
 
-        print(
-            "No association rules found.\n"
-            "Try lowering min_support or "
-            "min_confidence."
-        )
+    # =====================================
+    # CNN MODEL
+    # =====================================
+
+    cnn_model = CNNModel()
+
+    # =====================================
+    # RUN COMPLETE PIPELINE
+    # =====================================
+
+    cnn_model.run_pipeline(
+
+        X_train,
+        X_test,
+        y_train,
+        y_test
+    )
+
+    # =====================================
+    # CROSS VALIDATION
+    # =====================================
+
+    print(
+        "\n====================================="
+    )
+
+    print(
+        " CROSS VALIDATION "
+    )
+
+    print(
+        "=====================================\n"
+    )
+
+    # Full dataset for K-Fold
+
+    X = dataset.data.drop(
+        columns=['Delivery_Status']
+    )
+
+    y = dataset.data['Delivery_Status']
+
+    cnn_model.cross_validation(
+        X,
+        y,
+        folds=5
+    )
+
+    print(
+        "\n====================================="
+    )
+
+    print(
+        " PROJECT COMPLETED SUCCESSFULLY "
+    )
+
+    print(
+        "=====================================\n"
+    )
 
 
-# ==========================================
+# =====================================
 # DRIVER CODE
-# ==========================================
+# =====================================
 
 if __name__ == "__main__":
 
